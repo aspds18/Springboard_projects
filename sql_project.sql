@@ -37,7 +37,6 @@ WHERE membercost !=0
 SELECT COUNT( * ) 
 FROM  `Facilities` 
 WHERE membercost =0
-LIMIT 0 , 30
 
 
 /* Q3: How can you produce a list of facilities that charge a fee to members,
@@ -53,15 +52,10 @@ WHERE membercost !=0 AND membercost < 0.2* monthlymaintenance
 /* Q4: How can you retrieve the details of facilities with ID 1 and 5?
 Write the query without using the OR operator. */
 
-SELECT * , 
-CASE 
-WHEN facid =1
-THEN  '1'
-WHEN facid =5
-THEN  '5'
-ELSE  'Not 1 nor 5'
-END AS Id
+SELECT * 
 FROM  `Facilities` 
+WHERE facid
+IN ( 1, 5 ) 
 
 
 /* Q5: How can you produce a list of facilities, with each labelled as
@@ -76,17 +70,16 @@ THEN  'cheap'
 ELSE  'expensive'
 END AS  'cost'
 FROM  `Facilities` 
-LIMIT 0 , 30
 
 
 /* Q6: You'd like to get the first and last name of the last member(s)
 who signed up. Do not use the LIMIT clause for your solution. */
 
-SELECT members.firstname, members.surname, signups.starttime
-FROM  `Members` AS members
-JOIN `Bookings` AS signups
-ON members.memid=signups.memid
-ORDER BY signups.starttime DESC
+SELECT surname, firstname
+FROM  `Members` 
+WHERE joindate = ( 
+SELECT MAX( joindate ) 
+FROM  `Members` )
 
 
 /* Q7: How can you produce a list of all members who have used a tennis court?
@@ -106,8 +99,6 @@ JOIN  `Bookings` AS signups ON members.memid = signups.memid
 WHERE signups.facid =0
 OR signups.facid =1
 ORDER BY member
-LIMIT 0 , 30
-
 
 
 /* Q8: How can you produce a list of bookings on the day of 2012-09-14 which
@@ -117,10 +108,48 @@ the guest user's ID is always 0. Include in your output the name of the
 facility, the name of the member formatted as a single column, and the cost.
 Order by descending cost, and do not use any subqueries. */
 
+SELECT facilities.name, CONCAT( members.surname,  ' ', members.firstname ) AS member, 
+CASE WHEN signups.memid =0
+THEN facilities.guestcost * signups.slots
+ELSE facilities.membercost * signups.slots
+END AS cost
+FROM  `Bookings` AS signups
+LEFT JOIN  `Facilities` AS facilities ON signups.facid = facilities.facid
+LEFT JOIN  `Members` AS members ON signups.memid = members.memid
+WHERE signups.starttime LIKE  '2012-09-14%'
+AND IF( members.memid =0, facilities.guestcost, facilities.membercost ) * signups.slots >30
+ORDER BY 3 DESC 
+
 
 /* Q9: This time, produce the same result as in Q8, but using a subquery. */
+
+SELECT * 
+FROM (
+SELECT facilities.name, CONCAT( members.surname,  ' ', members.firstname ) AS member, 
+CASE WHEN signups.memid =0
+THEN facilities.guestcost * signups.slots
+ELSE facilities.membercost * signups.slots
+END AS cost
+FROM  `Bookings` AS signups
+LEFT JOIN  `Facilities` AS facilities ON signups.facid = facilities.facid
+LEFT JOIN  `Members` AS members ON signups.memid = members.memid
+WHERE signups.starttime LIKE  '2012-09-14%'
+)sub
+WHERE cost >30
+ORDER BY 3 DESC
 
 
 /* Q10: Produce a list of facilities with a total revenue less than 1000.
 The output of facility name and total revenue, sorted by revenue. Remember
 that there's a different cost for guests and members! */
+
+SELECT facilities.name, SUM( 
+CASE WHEN signups.memid =0
+THEN facilities.guestcost * signups.slots
+ELSE facilities.membercost * signups.slots
+END ) AS revenue
+FROM  `Bookings` AS signups
+LEFT JOIN  `Facilities` AS facilities ON signups.facid = facilities.facid
+GROUP BY 1 
+HAVING revenue <1000
+ORDER BY 2 DESC 
